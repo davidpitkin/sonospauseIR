@@ -15,7 +15,9 @@
 
 #include <Client.h>
 #include <Ethernet.h>
+#include <SPI.h>
 #include <IRremote.h>
+
 
 /*----------------------------------------------------------------------*/
 /* Macros and constants */
@@ -51,43 +53,19 @@
 /* Arduino pin to which IR receiver is connected */
 #define IR_PIN 8
 
-/* IRremote hex codes for received remote commands */
-//#define REMOTE_PLAY      0x35
-//#define REMOTE_PAUSE     0x30
-//#define REMOTE_PREV      0x21
-//#define REMOTE_NEXT      0x20
-#define REMOTE_SHUFFLE   0x1C
-#define REMOTE_REPEAT    0x1D
-#define REMOTE_AB        0x3B
-#define REMOTE_SCAN      0x2B
-#define REMOTE_REV       0x32
-#define REMOTE_FWD       0x34
-//#define REMOTE_VOLU      0x10
-//#define REMOTE_VOLD      0x11
-
-//Thomson universal set to Philips code = 0200
-// 0C 0D
-// 20 10
-// 21 11
-
-#define REMOTE_PLAY     0x0C
-#define REMOTE_PAUSE    0x0D
-#define REMOTE_NEXT     0x20
-#define REMOTE_VOLU     0x10
-#define REMOTE_PREV     0x21
-#define REMOTE_VOLD     0x11
-
+/* IRremote codes for received remote commands */
+#define REMOTE_VOLU      32695
+#define REMOTE_VOLD      32694
 
 /* IP addresses of Arduino and ZonePlayer */
 #define IP1     192
 #define IP2     168
 #define IP3     1
-#define IP4ZP   132 /* Office */
-#define IP4ARD  141 /* Arduino */
+#define IP4ZP   152 /* Office */
+#define IP4ARD  200 /* Arduino */
 
 /* Enable DEBUG for serial debug output */
-//
-//#define DEBUG
+// #define DEBUG
 
 /*----------------------------------------------------------------------*/
 /* Global variables */
@@ -170,6 +148,8 @@ loop()
 	if (irrecv.decode(&results)) {
 #ifdef DEBUG
 		Serial.println(results.value, HEX);
+                Serial.println(results.value);
+                Serial.println(results.value & 0xFF);
 #endif
 
 		/*
@@ -178,117 +158,12 @@ loop()
 		 */
 		if (millis() > (lastcmd + 200)) {
 			/* compare received IR against known commands */
-			switch (results.value & 0xFF) {
-			case REMOTE_SCAN:
-				if (mode == MODE_SCAN)
-					mode = MODE_NORMAL;
-				else {
-					mode = MODE_SCAN;
-					sonos(SONOS_POSIT, data1, nullbuf);
-					if (seconds(data1 + 1) > 10)
-						sonos(SONOS_NEXT, nullbuf, nullbuf);
-				}
-				break;
-
-			case REMOTE_AB:
-				if (mode == MODE_AB)
-					mode = MODE_NORMAL;
-				else if (mode == MODE_A) {
-					mode = MODE_AB;
-					sonos(SONOS_POSIT, data1, nullbuf);
-					posb = seconds(data1 + 1);
-				} else {
-					mode = MODE_A;
-					sonos(SONOS_POSIT, data1, nullbuf);
-					posa = seconds(data1 + 1);
-				}
-				break;
-
-			case REMOTE_PLAY:
-				mode = MODE_NORMAL;
-				sonos(SONOS_PLAY, nullbuf, nullbuf);
-				break;
-
-			case REMOTE_PAUSE:
-				mode = MODE_NORMAL;
-				sonos(SONOS_PAUSE, nullbuf, nullbuf);
-				break;
-
-			case REMOTE_NEXT:
-				mode = MODE_NORMAL;
-				sonos(SONOS_NEXT, nullbuf, nullbuf);
-				break;
-
-			case REMOTE_PREV:
-				mode = MODE_NORMAL;
-				if (millis() > lastrew + 2000) {
-					desttime = 0;
-					sonos(SONOS_SEEK, nullbuf, nullbuf);
-				} else
-					sonos(SONOS_PREV, nullbuf, nullbuf);
-				lastrew = millis();
-				break;
-
-			case REMOTE_SHUFFLE:
-				mode = MODE_NORMAL;
-				sonos(SONOS_MODE, data1, nullbuf);
-				res = sum_letters(data1 + 1);
-				if (res == 457)
-					sonos(SONOS_SHUFF, nullbuf, nullbuf);
-				//NORMAL
-					if (res == 525)
-					sonos(SONOS_REPEAT, nullbuf, nullbuf);
-				//SHUFFLE
-					if (res == 761)
-					sonos(SONOS_SHUREP, nullbuf, nullbuf);
-				//REPEAT_ALL
-					if (res == 1226)
-					sonos(SONOS_NORMAL, nullbuf, nullbuf);
-				//SHUFFLE_NOREPEAT
-					break;
-
-			case REMOTE_REPEAT:
-				mode = MODE_NORMAL;
-				sonos(SONOS_MODE, data1, nullbuf);
-				res = sum_letters(data1 + 1);
-				if (res == 457)
-					sonos(SONOS_REPEAT, nullbuf, nullbuf);
-				//NORMAL
-					if (res == 525)
-					sonos(SONOS_SHUFF, nullbuf, nullbuf);
-				//SHUFFLE
-					if (res == 761)
-					sonos(SONOS_NORMAL, nullbuf, nullbuf);
-				//REPEAT_ALL
-					if (res == 1226)
-					sonos(SONOS_SHUREP, nullbuf, nullbuf);
-				//SHUFFLE_NOREPEAT
-					break;
-
-			case REMOTE_REV:
-				mode = MODE_NORMAL;
-				sonos(SONOS_POSIT, data1, nullbuf);
-				res = seconds(data1 + 1);
-				res -= 10;
-				if (res > 0) {
-					desttime = res;
-					sonos(SONOS_SEEK, nullbuf, nullbuf);
-				}
-				break;
-
-			case REMOTE_FWD:
-				mode = MODE_NORMAL;
-				strcpy(data2, "TrackDuration");
-				sonos(SONOS_POSIT, data1, data2);
-				res = seconds(data1 + 1);
-				res += 10;
-				if (res < seconds(data2 + 1)) {
-					desttime = res;
-					sonos(SONOS_SEEK, nullbuf, nullbuf);
-				}
-				break;
-
+			switch (results.value) {
 			case REMOTE_VOLU:
+#ifdef DEBUG
+                                Serial.println(results.value & 0xFF);
+		                Serial.println('VOLU');
+#endif
 				sonos(SONOS_GETVOL, data1, nullbuf);
 				sscanf(data1 + 1, "%d", &newvol);
 				newvol += 5;
@@ -298,6 +173,9 @@ loop()
 				break;
 
 			case REMOTE_VOLD:
+#ifdef DEBUG
+		                Serial.println('VOLD');
+#endif
 				sonos(SONOS_GETVOL, data1, nullbuf);
 				sscanf(data1 + 1, "%d", &newvol);
 				newvol -= 5;
