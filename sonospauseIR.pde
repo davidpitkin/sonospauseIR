@@ -11,6 +11,7 @@
  *
  * Changes:
  *	2010-04-24 simon added volume control
+ *      2011-06 dpitkin modified to work with Beocom 6000
  */
 
 #include <Client.h>
@@ -43,6 +44,8 @@
 #define SONOS_POSIT  10
 #define SONOS_GETVOL 11
 #define SONOS_SETVOL 12
+#define SONOS_MUTE   13
+#define SONOS_UNMUTE 14
 
 /* State machine for A-B repeat and intro scan functions */
 #define MODE_NORMAL 0
@@ -53,7 +56,7 @@
 /* Arduino pin to which IR receiver is connected */
 #define IR_PIN 8
 
-/* IRremote codes for received remote commands */
+/* IRremote hex codes for received remote commands */
 #define REMOTE_VOLU      32695
 #define REMOTE_VOLD      32694
 
@@ -65,7 +68,7 @@
 #define IP4ARD  200 /* Arduino */
 
 /* Enable DEBUG for serial debug output */
-// #define DEBUG
+#define DEBUG
 
 /*----------------------------------------------------------------------*/
 /* Global variables */
@@ -146,10 +149,11 @@ loop()
 
 	/* look to see if a packet has been received from the IR receiver */
 	if (irrecv.decode(&results)) {
-#ifdef DEBUG
-		Serial.println(results.value, HEX);
-                Serial.println(results.value);
-                Serial.println(results.value & 0xFF);
+
+  #ifdef DEBUG
+	Serial.println(results.value, HEX);
+        Serial.println(results.value);
+        Serial.println(results.value & 0xFF);
 #endif
 
 		/*
@@ -164,9 +168,10 @@ loop()
                                 Serial.println(results.value & 0xFF);
 		                Serial.println('VOLU');
 #endif
-				sonos(SONOS_GETVOL, data1, nullbuf);
+				sonos(SONOS_UNMUTE, nullbuf, nullbuf);
+                                sonos(SONOS_GETVOL, data1, nullbuf);
 				sscanf(data1 + 1, "%d", &newvol);
-				newvol += 5;
+				newvol += 10;
 				if (newvol > 100)
 					newvol = 100;
 				sonos(SONOS_SETVOL, nullbuf, nullbuf);
@@ -178,7 +183,7 @@ loop()
 #endif
 				sonos(SONOS_GETVOL, data1, nullbuf);
 				sscanf(data1 + 1, "%d", &newvol);
-				newvol -= 5;
+				newvol -= 10;
 				if (newvol < 0)
 					newvol = 0;
 				sonos(SONOS_SETVOL, nullbuf, nullbuf);
@@ -373,7 +378,19 @@ sonos(int cmd, char *resp1, char *resp2)
 			sprintf(extra, "<Channel>Master</Channel><DesiredVolume>%d</DesiredVolume>", newvol);
 			strcpy(service, "RenderingControl");
 			break;
-		}
+
+                case SONOS_MUTE:
+                        strcpy(cmdbuf, "SetMute");
+                        sprintf(extra, "<Channel>Master</Channel><DesiredMute>1</DesiredMute>");
+                        strcpy(service, "RenderingControl");
+                        break;
+
+                case SONOS_UNMUTE:
+                        strcpy(cmdbuf, "SetMute");
+                        sprintf(extra, "<Channel>Master</Channel><DesiredMute>0</DesiredMute>");
+                        strcpy(service, "RenderingControl");
+                        break;
+ 		}
 
 		/* output the command packet */
 		sprintf(buf, "POST /MediaRenderer/%s/Control HTTP/1.1", service);
